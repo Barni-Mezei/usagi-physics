@@ -4,7 +4,7 @@ Made with the [Usagi](https://github.com/brettchalupa/usagi) engine
 
 # Running the  game
 
-Download Usagi and they you can run the program like so `./usagi run`
+Download Usagi and then you can run the program like so `./usagi run`
 
 # General controls
 

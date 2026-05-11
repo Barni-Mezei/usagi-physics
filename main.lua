@@ -47,7 +47,7 @@ local omx, omy = 0, 0
 
 Settings = {
 	global_strength = 1, -- Global spring strength
-	iteration_count = 4, -- Global spring strength
+	iteration_count = 10, -- Constraint solver iteration count
 }
 
 selected_balls = {} -- Selected ball index
