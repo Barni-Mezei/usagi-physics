@@ -20,8 +20,8 @@ function M.init()
 end
 
 ---Appends an object into the object pool, or replaces an inactive one
----@param obj      table  The object to add to the pool
----@param obj_type string The type of the object
+---@param obj       table  The object to add to the pool
+---@param obj_type? string The type of the object
 function M.add_object(obj, obj_type)
     -- Set object type (if provided)
     if obj_type == nil then

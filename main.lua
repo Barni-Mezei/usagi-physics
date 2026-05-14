@@ -35,6 +35,7 @@ function _config()
 		name = "Physics",
 		game_id = "com.barni-07.physics",
 		icon = 1,
+		pause_menu = false,
 
 		-- game_width = 640,
 		-- game_height = 360,
@@ -104,7 +105,7 @@ local function create_ball(x, y, radius, mass)
 
 		if self.pinned then color = gfx.COLOR_ORANGE end
 		if is_hovered then color = gfx.COLOR_RED end
-		
+
 		gfx.circ_fill(self.x, self.y, self.r, color)
 
 		if is_selected then
@@ -113,7 +114,7 @@ local function create_ball(x, y, radius, mass)
 	end
 
 	if ball ~= -1 then
-		State.ball_count += 1
+		State.ball_count = State.ball_count + 1
 	end
 
 	return ball
