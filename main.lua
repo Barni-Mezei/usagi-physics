@@ -13,12 +13,14 @@ ball - ball collisions
 - grid based optimisation
 
 Tools:
-- ball placer: left place, right delete (menu: ball radius?, mass?)
-- select: [left drag select, if hovereda ball on start: set start XY to ball XY], right click to select all connected
-- move: move selected
-- pin: left clik to toggle pin state
-- animate: left clik to add motion, like rotation (menu: motion mode selecti) right click to remove that motion mode
-- constraint creator: click on start, click on end -> creates a new constraint (menu: power?, connect selected)
+- [x] ball placer: left place, right delete (menu: ball radius?, mass?)
+- [x] select: [left drag select, [ ] if hovered a ball on start: set start XY to ball XY], [ ] right click to select all connected
+- [x] move: move selected
+- [x] pin: left clik to toggle pin state
+- [ ] animate: left clik to add motion, like rotation (menu: motion mode selecti) right click to remove that motion mode
+- [x] constraint creator: click on start, click on end -> creates a new constraint (menu: power?, connect selected)
+
+[ ] Tool menu
 
 - blueprint library:
 - save selected
@@ -26,9 +28,6 @@ Tools:
 
 Other controls:
 - camera controls [middle-click panning / zoom, focus selected balls into view]
-
-
-Each mode gets a new function, functions get passed mouse position, clicks and releases
 
 ]]
 
@@ -194,7 +193,7 @@ local function create_ball(x, y, radius, mass)
 	-- ball.vx = rand_float(-8, 8)
 	-- ball.vy = rand_float(-6, 1)
 
-	ball.render = function (self, is_hovered, is_selected)
+	ball.render = function (self, is_hovered, is_selected, is_connection)
 		--[[if usagi.IS_DEV then
 			local t = tostring(self.index)
 			local w, h = usagi.measure_text(t)
@@ -205,6 +204,7 @@ local function create_ball(x, y, radius, mass)
 
 		if self.pinned then color = gfx.COLOR_ORANGE end
 		if is_hovered then color = gfx.COLOR_RED end
+		if is_connection then color = gfx.COLOR_DARK_GRAY end
 
 		gfx.circ_fill(self.x, self.y, self.r, color)
 
@@ -484,6 +484,20 @@ local function _update_menu_animate(left, right)
 end
 
 local function _update_menu_connect(left, right)
+	if left == 1 and Hovered_ball_index ~= -1 then
+		if get_menu_data("connect").first_ball_index == -1 then
+			get_menu_data("connect").first_ball_index = Hovered_ball_index
+		else
+			-- Create new connection
+			Pool.add_object(create_constraint(
+				get_menu_data("connect").first_ball_index,
+				Hovered_ball_index
+			))
+
+			-- Reset connection origin
+			get_menu_data("connect").first_ball_index = -1
+		end
+	end
 end
 
 -- Toolbar (global)
@@ -697,17 +711,18 @@ function _draw(dt)
 	-- Render balls on top
 	Pool.foreach_type("ball", function (obj, i)
 		if obj.render == nil then return end
-		obj:render(Hovered_ball_index == i, Selected_balls[i])
+		obj:render(Hovered_ball_index == i, Selected_balls[i], get_menu_data("connect").first_ball_index == i)
 	end)
 
 	-- Render selection
 	local area = get_menu_data("select")
 	if area.active then
+		local r = normalise_rect(area)
 		gfx.rect(
-			area.x,
-			area.y,
-			area.w,
-			area.h,
+			r.x,
+			r.y,
+			r.w,
+			r.h,
 			gfx.COLOR_BLUE
 		)
 	end
@@ -726,6 +741,17 @@ function _draw(dt)
 	end
 
 	ui.render(true)
+
+	-- Render info a bout the selected ball
+	if State.stat_selected ~= -1 then
+		local ball = Pool.objects[State.stat_selected]
+
+		-- Draw velocity
+		local scale = 4
+		gfx.line(ball.x, ball.y, ball.x + ball.vx*scale, ball.y, gfx.COLOR_RED)
+		gfx.line(ball.x, ball.y, ball.x, ball.y + ball.vy*scale, gfx.COLOR_GREEN)
+		gfx.line(ball.x, ball.y, ball.x + ball.vx*scale, ball.y + ball.vy*scale, gfx.COLOR_LIGHT_GRAY)
+	end
 
 	-- Render the mouse cursor
 	gfx.spr(2, mx - 8, my - 8)

@@ -11,8 +11,8 @@ Download Usagi and then you can run the program like so `./usagi run`
 - `space`: To pause or unpause the simulation
 - `A/D` or `Left/Right`: To switch tools
 - `1` ... `9`: To load blueprints (1: rectangle, 2: polygon, 3: rope)
-- `LMB`: Use selected tool
-- `LMB`: Use selected tool (secondary mode)
+- `LMB`: Use the selected tool
+- `RMB`: Use the selected tool (secondary mode)
 
 
 # Tools
@@ -38,6 +38,7 @@ Download Usagi and then you can run the program like so `./usagi run`
   #### Controls
   - Left click and drag: area selection
   - Right click on a ball: Select the whole creation this ball is connected to
+  - `[Delete]` or `[Backspace]`: Remove selected balls
 
 
 
@@ -69,7 +70,7 @@ Download Usagi and then you can run the program like so `./usagi run`
 
   #### Description
   
-  This tool allows you to add fix animations to a ball. (Like rotation, or mouse following)
+  This tool allows you to add animations to a ball. (Like rotation, or mouse following)
   
   #### Controls
   - Left click on a ball: Add selected animation
@@ -84,5 +85,5 @@ Download Usagi and then you can run the program like so `./usagi run`
   This tool allows you to create connections (distance constraints) between balls
   
   #### Controls
-  - Left click on a ball: Start creating a connection, left click on a ball to finish it
-  - Right click on a connection: Delete
+  - Left click on a ball: Start creating a connection, left click on a ball again to finish it
+  - Right click on a connection to delete it

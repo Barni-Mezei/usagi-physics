@@ -68,7 +68,6 @@ end
 ---@param y1 number The Y coordinate of the first point
 ---@param x2 number The X coordinate of the second point
 ---@param y2 number The Y coordinate of the second point
-
 function M.create_line(x1, y1, x2, y2)
     return {
         type = "line",

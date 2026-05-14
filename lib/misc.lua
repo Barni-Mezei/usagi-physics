@@ -77,17 +77,24 @@ end
 ---@param r Usagi.Rect A rectangle
 ---@return Usagi.Rect The normalised rectangle
 function normalise_rect(r)
+	local out = {
+		x = r.x,
+		y = r.y,
+		w = r.w,
+		h = r.h,
+	}
+
 	if r.w < 0 then
-		r.x = r.x + r.w
-		r.w = math.abs(r.w)
+		out.x = r.x + r.w
+		out.w = math.abs(r.w)
 	end
 
 	if r.h < 0 then
-		r.y = r.y + r.h
-		r.h = math.abs(r.h)
+		out.y = r.y + r.h
+		out.h = math.abs(r.h)
 	end
 
-	return r
+	return out
 end
 
 function get_balls_in_area(r)
