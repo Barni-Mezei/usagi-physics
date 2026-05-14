@@ -1,3 +1,5 @@
+---@diagnostic disable: param-type-mismatch
+
 local shapes = require("lib.shapes")
 local ui = require("lib.ui")
 local v = require("lib.vector")
@@ -35,10 +37,10 @@ function _config()
 		name = "Physics",
 		game_id = "com.barni-07.physics",
 		icon = 1,
-		pause_menu = false,
 
 		-- game_width = 640,
 		-- game_height = 360,
+		--pause_menu = false,
 	}
 end
 
@@ -51,17 +53,19 @@ Settings = {
 	iteration_count = 10, -- Constraint solver iteration count
 }
 
-selected_balls = {} -- Selected ball index
-selection_reset = false -- Clear selection after action?
+Selected_balls = {} -- Selected ball index
+Selection_reset = false -- Clear selection after action?
 
-hovered_ball_index = -1 -- Hovered ball
-hovered_constraint_index = -1 -- Hovered constraint
+Hovered_ball_index = -1 -- Hovered ball
+Hovered_constraint_index = -1 -- Hovered constraint
 
 function _init()
+	ui.init()
+
 	-- Keep between reloads
-	pool = require("lib.pool")
-	pool.init()
-	pool.max_size = -1
+	Pool = require("lib.pool")
+	Pool.init()
+	Pool.max_size = -1
 
 	input.set_mouse_visible(false)
 
@@ -69,12 +73,108 @@ function _init()
 		-- Stats
 		ball_count = 0,
 		constraint_count = 0,
-		
+
 		-- UI
 		selected_menu = 1,
 		is_paused = true,
 		stat_selected = -1, -- Visualised ball index
 	}
+
+	-- Construct the UI
+
+	-- Top info panel
+	---@diagnostic disable-next-line: missing-fields
+	Pause_label = ui.create_label({
+		type = "label",
+		value_hook = "paused",
+		text = "PAUSED",
+		visible = false,
+	})
+
+	---@diagnostic disable-next-line: missing-fields
+	ui.add_panel({
+		type = "list",
+		axis = "y",
+		children = {
+			{
+				type = "label",
+				value_hook = "object_count",
+			},
+			{
+				type = "label",
+				value_hook = "tool",
+			},
+			Pause_label,
+		},
+	}, 0, -1)
+
+	-- Bottom toolbar
+	Tool_list = ui.create_list("x", 2)
+	Tool_list.my = 1
+
+	for k, tool in pairs(Menu_items) do
+		---@diagnostic disable-next-line: missing-fields
+		Menu_items[k].item = ui.create_box({
+			fix_size = true,
+			w = usagi.SPRITE_SIZE,
+			h = usagi.SPRITE_SIZE,
+			data = {
+				i = k
+			},
+		})
+
+		Tool_list.add_child(Menu_items[k].item)
+	end
+
+	ui.add_panel(Tool_list, 0, 1)
+
+	-- Top right info panel (4 lines: d1, d2 ... d4)
+	Debug_info = ui.create_list("y", 0, -1)
+
+	for i = 1, 4 do
+		local new_label = ui.create_label("", -1,0, f("d%d", i))
+		new_label.style = {text_color = gfx.COLOR_LIGHT_GRAY}
+		Debug_info.add_child(new_label)
+	end
+
+	ui.add_panel(Debug_info, 1, -1)
+
+	-- Bottom right info panel
+	Session_info = ui.create_list("y", 4, -1)
+	local time_label = ui.create_label("", -1,0, "time")
+	time_label.style = {text_color = gfx.COLOR_LIGHT_GRAY}
+	Session_info.add_child(time_label)
+	local delta_label = ui.create_label("", -1,0, "delta")
+	delta_label.style = {text_color = gfx.COLOR_LIGHT_GRAY}
+	Session_info.add_child(delta_label)
+
+	ui.add_panel(Session_info, 1, 1)
+
+	-- ui.update()
+	-- dump(Session_info)
+	-- os.exit()
+end
+
+-- Simple custom render function
+function ui.render_item(item)
+    if item.visible == false then return end
+
+    if item.type == "label" then
+		local color = gfx.COLOR_WHITE
+		if item.style ~= nil then color = item.style.text_color or color end
+
+        gfx.text(item.text, item.text_x, item.text_y, color)
+    end
+
+    if item.type == "box" and item.data ~= nil then
+		if State.selected_menu == item.data.i then
+			gfx.spr(4, item.x, item.y)
+		else
+			gfx.spr(3, item.x, item.y)
+		end
+
+		gfx.spr(Menu_items[item.data.i].sprite, item.x, item.y)
+	end
 end
 
 --
@@ -88,8 +188,8 @@ local function create_ball(x, y, radius, mass)
 
 	ball.mass = mass or radius or 1
 	ball.inv_mass = 1 / ball.mass
-	
-	ball.index = #pool.objects + 1
+
+	ball.index = #Pool.objects + 1
 
 	-- ball.vx = rand_float(-8, 8)
 	-- ball.vy = rand_float(-6, 1)
@@ -122,8 +222,8 @@ end
 
 -- Create a new constraint
 local function create_constraint(ball1_index, ball2_index)
-	local b1 = pool.objects[ball1_index]
-	local b2 = pool.objects[ball2_index]
+	local b1 = Pool.objects[ball1_index]
+	local b2 = Pool.objects[ball2_index]
 
 	local constraint = shapes.create_line(b1.x, b1.y, b2.x, b2.y)
 
@@ -134,8 +234,8 @@ local function create_constraint(ball1_index, ball2_index)
 
 	constraint.update = function (self, dt)
 		-- Set line ends to the ball positions
-		local b1 = pool.objects[self.index_1]
-		local b2 = pool.objects[self.index_2]
+		local b1 = Pool.objects[self.index_1]
+		local b2 = Pool.objects[self.index_2]
 
 		self.x1 = b1.x
 		self.y1 = b1.y
@@ -146,8 +246,8 @@ local function create_constraint(ball1_index, ball2_index)
 
 	constraint.push = function (self)
 		-- Get the balls at the end of the line
-		local b1 = pool.objects[self.index_1]
-		local b2 = pool.objects[self.index_2]
+		local b1 = Pool.objects[self.index_1]
+		local b2 = Pool.objects[self.index_2]
 
 		-- Calculate the positional difference of the balls
 		local pos_diff = v.sub(b1, b2)
@@ -191,45 +291,45 @@ end
 
 local function blueprint_create_rect(px, py)
 	-- Corners
-	local top_left     = pool.add_object(create_ball(px     , py     , 3))
-	local top_right    = pool.add_object(create_ball(px + 32, py     , 3))
-	local bottom_right = pool.add_object(create_ball(px + 32, py + 32, 3))
-	local bottom_left  = pool.add_object(create_ball(px     , py + 32, 3))
+	local top_left     = Pool.add_object(create_ball(px     , py     , 3))
+	local top_right    = Pool.add_object(create_ball(px + 32, py     , 3))
+	local bottom_right = Pool.add_object(create_ball(px + 32, py + 32, 3))
+	local bottom_left  = Pool.add_object(create_ball(px     , py + 32, 3))
 
 	-- Sides
-	local top    = pool.add_object(create_constraint(top_left    , top_right   ))
-	local right  = pool.add_object(create_constraint(top_right   , bottom_right))
-	local bottom = pool.add_object(create_constraint(bottom_right, bottom_left ))
-	local left   = pool.add_object(create_constraint(bottom_left , top_left    ))
+	Pool.add_object(create_constraint(top_left    , top_right   ))
+	Pool.add_object(create_constraint(top_right   , bottom_right))
+	Pool.add_object(create_constraint(bottom_right, bottom_left ))
+	Pool.add_object(create_constraint(bottom_left , top_left    ))
 
 	-- Structural elements
-	local s1 = pool.add_object(create_constraint(top_left , bottom_right))
-	local s2 = pool.add_object(create_constraint(top_right, bottom_left ))
+	Pool.add_object(create_constraint(top_left , bottom_right))
+	Pool.add_object(create_constraint(top_right, bottom_left ))
 end
 
 local function blueprint_create_poly(cx, cy, radius, sides)
-	local center = pool.add_object(create_ball(cx, cy, 4))
+	local center = Pool.add_object(create_ball(cx, cy, 4))
 	local corners = {} 
 
 	-- Create corners
 	for i = 1, sides do
 		local corner_pos = util.vec_from_angle(math.rad(360 / sides) * i, radius)
-		table.insert( corners, pool.add_object(create_ball(cx + corner_pos.x, cy + corner_pos.y, 3)) )
+		table.insert( corners, Pool.add_object(create_ball(cx + corner_pos.x, cy + corner_pos.y, 3)) )
 	end
 
 	-- Create sides and prongs
 	for i = 1, sides - 1 do
-		pool.add_object(create_constraint(corners[i], corners[i + 1]))
-		pool.add_object(create_constraint(center, corners[i]))
+		Pool.add_object(create_constraint(corners[i], corners[i + 1]))
+		Pool.add_object(create_constraint(center, corners[i]))
 	end
 
 	-- Connect last to the first and the last to the cenetr
-	pool.add_object(create_constraint(corners[sides], corners[1]))
-	pool.add_object(create_constraint(center, corners[sides]))
+	Pool.add_object(create_constraint(corners[sides], corners[1]))
+	Pool.add_object(create_constraint(center, corners[sides]))
 end
 
 local function blueprint_create_rope(x1, y1, x2, y2, segments)
-	local nodes = {} 
+	local nodes = {}
 
 	local dx = (x2 - x1) / segments
 	local dy = (y2 - y1) / segments
@@ -244,12 +344,12 @@ local function blueprint_create_rope(x1, y1, x2, y2, segments)
 			ball.pin_y = ball.y
 		end
 
-		table.insert(nodes, pool.add_object(ball))
+		table.insert(nodes, Pool.add_object(ball))
 	end
 
 	-- Create connections
 	for i = 1, segments do
-		pool.add_object(create_constraint(nodes[i], nodes[i + 1]))
+		Pool.add_object(create_constraint(nodes[i], nodes[i + 1]))
 	end
 end
 
@@ -267,17 +367,17 @@ local function get_menu_data(menu_id)
 		connect = 6,
 	}
 
-	return menu_items[menu_index_lookup[menu_id]].data
+	return Menu_items[menu_index_lookup[menu_id]].data
 end
 
 local function _update_menu_ball(left, right)
 	if left == 1 then
 		local ball = create_ball(mx, my, 3)
-		local ball_index = pool.add_object(ball)
+		local ball_index = Pool.add_object(ball)
 	end
 
-	if right == 1 and hovered_ball_index ~= -1 then
-		remove_ball_and_constraints(hovered_ball_index)
+	if right == 1 and Hovered_ball_index ~= -1 then
+		remove_ball_and_constraints(Hovered_ball_index)
 	end
 end
 
@@ -286,16 +386,16 @@ local function _update_menu_select(left, right)
 		get_menu_data("select").active = true
 		get_menu_data("select").x = mx
 		get_menu_data("select").y = my
-		selected_balls = {}
+		Selected_balls = {}
 	end
 
 	if left == -1 then
 		get_menu_data("select").active = false
-		selected_balls = get_balls_in_area(normalise_rect(get_menu_data("select")))
+		Selected_balls = get_balls_in_area(normalise_rect(get_menu_data("select")))
 	end
 
 	if input.pressed(input.BTN3) or input.key_pressed(input.KEY_DELETE) or input.key_pressed(input.KEY_BACKSPACE) then
-		for obj_index, _ in pairs(selected_balls) do
+		for obj_index, _ in pairs(Selected_balls) do
 			remove_ball_and_constraints(obj_index)
 		end
 	end
@@ -329,11 +429,11 @@ local function _update_menu_move(left, right)
 
 	if right == -1 then
 		-- Actually move the balls
-		for obj_index, _ in pairs(selected_balls) do
-			pool.objects[obj_index].x += get_menu_data("move").dx
-			pool.objects[obj_index].y += get_menu_data("move").dy
-			pool.objects[obj_index].pin_x += get_menu_data("move").dx
-			pool.objects[obj_index].pin_y += get_menu_data("move").dy
+		for obj_index, _ in pairs(Selected_balls) do
+			Pool.objects[obj_index].x += get_menu_data("move").dx
+			Pool.objects[obj_index].y += get_menu_data("move").dy
+			Pool.objects[obj_index].pin_x += get_menu_data("move").dx
+			Pool.objects[obj_index].pin_y += get_menu_data("move").dy
 		end
 
 		get_menu_data("move").mode = ""
@@ -350,71 +450,55 @@ local function _update_menu_move(left, right)
 		get_menu_data("move").dy = my - omy
 
 		-- Move the balls smoothly
-		for obj_index, _ in pairs(selected_balls) do
+		for obj_index, _ in pairs(Selected_balls) do
 			if State.is_paused then
-				pool.objects[obj_index].x += get_menu_data("move").dx
-				pool.objects[obj_index].y += get_menu_data("move").dy
+				Pool.objects[obj_index].x += get_menu_data("move").dx
+				Pool.objects[obj_index].y += get_menu_data("move").dy
 			end
-			pool.objects[obj_index].vx = get_menu_data("move").dx
-			pool.objects[obj_index].vy = get_menu_data("move").dy
-			pool.objects[obj_index].pin_x += get_menu_data("move").dx
-			pool.objects[obj_index].pin_y += get_menu_data("move").dy
+			Pool.objects[obj_index].vx = get_menu_data("move").dx
+			Pool.objects[obj_index].vy = get_menu_data("move").dy
+			Pool.objects[obj_index].pin_x += get_menu_data("move").dx
+			Pool.objects[obj_index].pin_y += get_menu_data("move").dy
 		end
 	end
 end
 
 local function _update_menu_pin(left, right)
-	if left == 1 and hovered_ball_index ~= -1 then
-		local i = hovered_ball_index
+	if left == 1 and Hovered_ball_index ~= -1 then
+		local i = Hovered_ball_index
 
-		pool.objects[i].pinned = true
-		pool.objects[i].pin_x = pool.objects[i].x
-		pool.objects[i].pin_y = pool.objects[i].y
+		Pool.objects[i].pinned = true
+		Pool.objects[i].pin_x = Pool.objects[i].x
+		Pool.objects[i].pin_y = Pool.objects[i].y
 	end
 
-	if right == 1 and hovered_ball_index ~= -1 then
-		pool.objects[hovered_ball_index].pinned = false
+	if right == 1 and Hovered_ball_index ~= -1 then
+		Pool.objects[Hovered_ball_index].pinned = false
 	end
-
-	--[[
-	PIn selected
-		local needs_pinning = State.selected_balls
-
-		-- Add hovered ball to the pinnables
-		if State.hovered_ball_index ~= -1 then
-			needs_pinning[State.hovered_ball_index] = true
-		end
-
-		for obj_index, _ in pairs(needs_pinning) do
-			pool.objects[obj_index].pinned = not pool.objects[obj_index].pinned
-			pool.objects[obj_index].pin_x = pool.objects[obj_index].x
-			pool.objects[obj_index].pin_y = pool.objects[obj_index].y
-		end
-
-		State.selected_balls = {}
-	]]
-
 end
 
 local function _update_menu_animate(left, right)
 	if left == 1 then
-		State.stat_selected = hovered_ball_index
+		State.stat_selected = Hovered_ball_index
 	end
 end
 
 local function _update_menu_connect(left, right)
 end
 
-menu_items = {
+-- Toolbar (global)
+Menu_items = {
 	{
 		title = "Place balls",
 		sprite = 5,
 		fn = _update_menu_ball,
+		item = {},
 	},
 	{
 		title = "Select",
 		sprite = 6,
 		fn = _update_menu_select,
+		item = {},
 		data = {
 			active = false,
 			x = 0,
@@ -427,6 +511,7 @@ menu_items = {
 		title = "Move",
 		sprite = 7,
 		fn = _update_menu_move,
+		item = {},
 		data = {
 			active = false,
 			x = 0,
@@ -440,28 +525,31 @@ menu_items = {
 		title = "Pin",
 		sprite = 8,
 		fn = _update_menu_pin,
+		item = {},
 	},
 	{
 		title = "Animate",
 		sprite = 9,
 		fn = _update_menu_animate,
+		item = {},
 	},
 	{
 		title = "Connect",
 		sprite = 10,
 		fn = _update_menu_connect,
+		item = {},
 		data = {
 			first_ball_index = -1,
 		},
 	},
 }
 
-local function _update_ui()
+local function handle_controls()
 	-- Single button controls
 	if input.key_pressed(input.KEY_SPACE) then State.is_paused = not State.is_paused end
 
-	if input.pressed(input.LEFT)  then State.selected_menu = util.clamp(State.selected_menu - 1, 1, #menu_items) end
-	if input.pressed(input.RIGHT) then State.selected_menu = util.clamp(State.selected_menu + 1, 1, #menu_items) end
+	if input.pressed(input.LEFT)  then State.selected_menu = util.clamp(State.selected_menu - 1, 1, #Menu_items) end
+	if input.pressed(input.RIGHT) then State.selected_menu = util.clamp(State.selected_menu + 1, 1, #Menu_items) end
 
 	-- Blueprints
 	if input.key_pressed(input.KEY_1) then blueprint_create_rect(mx, my) end
@@ -478,88 +566,11 @@ local function _update_ui()
 	if input.mouse_released(input.MOUSE_RIGHT) then mouse_right = -1 end
 
 	-- Execute menu function
-	if menu_items[State.selected_menu] ~= nil then
-		menu_items[State.selected_menu].fn(mouse_left, mouse_right)
+	if Menu_items[State.selected_menu] ~= nil then
+		Menu_items[State.selected_menu].fn(mouse_left, mouse_right)
 	end
-	
+
 	return nil
-
-	-- Placing balls and selecting them
-	--[[if input.mouse_pressed(input.MOUSE_LEFT) then
-		if State.hovered_ball_index ~= -1 then
-			State.selection_area = {}
-			State.interaction_mode = "drag"
-			State.selected_balls[State.hovered_ball_index] = 1
-		elseif next(State.selected_balls) ~= nil then
-			State.selected_balls = {}
-			State.interaction_mode = nil
-		elseif shift_pressed then
-
-		else
-			-- Placing balls
-			if State.selected_menu == 0 then
-				local ball = create_ball(mx, my, 3)
-				local ball_index = pool.add_object(ball)
-				State.selected_balls = {}
-			end
-	
-			-- Placing constraints
-			if State.selected_menu == 1 then
-			end
-		end
-	end
-
-	-- Confirm selection area
-	if input.mouse_released(input.MOUSE_LEFT) then
-		if State.interaction_mode ~= nil and State.selection_area.x ~= nil then
-			State.interaction_mode = nil
-			State.selected_balls = get_balls_in_area(normalise_rect(State.selection_area))
-			State.selection_area = {}
-		end
-
-		if State.interaction_mode == "drag" then
-			State.interaction_mode = nil
-		end
-	end
-
-	-- Selecting for deletion
-	if input.mouse_pressed(input.MOUSE_RIGHT) then
-		if shift_pressed then
-			State.selection_area = {x = mx, y = my, w = 0, h = 0}
-			State.interaction_mode = "delete"
-			State.selected_balls = {}
-		else
-			-- Delete hovered ball
-			if State.hovered_ball_index ~= -1 then
-				remove_ball_and_constraints(State.hovered_ball_index)
-			end
-		end
-	end
-
-	-- Confirm deletion area
-	if input.mouse_released(input.MOUSE_RIGHT) then
-		if State.interaction_mode ~= nil and State.selection_area.x ~= nil then
-			State.interaction_mode = nil
-			State.selected_balls = get_balls_in_area(normalise_rect(State.selection_area))
-
-			for obj_index, _ in pairs(State.selected_balls) do
-				remove_ball_and_constraints(obj_index)
-			end
-
-			State.selection_area = {}
-			State.selected_balls = {}
-		end
-	end
-
-
-
-	-- Cancel selection
-	if shift_released then
-		if State.interaction_mode ~= nil and State.selection_area.x ~= nil then
-			State.interaction_mode = nil
-			State.selection_area = {}
-		end
-	end]]
 end
 
 function _update(dt)
@@ -567,31 +578,57 @@ function _update(dt)
 
 	-- Update the UI if the cursor is on screen
 	if util.point_in_rect({x = mx, y = my}, {x = 0, y = 0, w = usagi.GAME_W, h = usagi.GAME_H}) then
-		_update_ui()
+		handle_controls()
 	else
 		-- Cancel all UI actions
 		get_menu_data("select").active = false
 		get_menu_data("move").mode = ""
 	end
 
+	-- Update UI values
+	ui.set_hook("object_count", f(
+		"%db + %dc = %d",
+		State.ball_count,
+		State.constraint_count,
+		State.ball_count + State.constraint_count
+	))
+
+	ui.set_hook("tool", f("[ %s ]", Menu_items[State.selected_menu].title))
+	Pause_label.visible = State.is_paused
+
+	-- Update debug and session info
+	ui.set_hook("d1", f("Pool size: %d", #Pool.objects))
+	ui.set_hook("d2", f("clr: %s", (Selection_reset and "true" or "false")))
+	ui.set_hook("d3", f("B: %d", Hovered_ball_index))
+	ui.set_hook("d4", f("C: %d", Hovered_constraint_index))
+
+	local s, m, h = get_time(util.round(usagi.elapsed))
+	ui.set_hook("time", f("Time: %02d:%02d:%02d", h, m, s))
+	ui.set_hook("delta", f("Delta: %.5f", dt))
+
+	Debug_info.visible = usagi.IS_DEV
+	Session_info.visible = usagi.IS_DEV
+
+	ui.update(mx, my)
+
 	local step_simulation = input.pressed(input.BTN1)
 
 	-- Update balls and find nearest to the cursor
-	hovered_ball_index = -1
+	Hovered_ball_index = -1
 
 	-- Update lines only
 	if not State.is_paused or step_simulation then
 		for  i = 0, Settings.iteration_count do
-			pool.foreach_type("line", function (obj, i)
+			Pool.foreach_type("line", function (obj, i)
 				obj:push()
 			end)
 		end
 	end
 
-	pool.foreach_type("ball", function (obj, i)
+	Pool.foreach_type("ball", function (obj, i)
 		-- Check for cursor proximity
 		if util.point_in_circ({x = mx, y = my}, obj) then
-			hovered_ball_index = i
+			Hovered_ball_index = i
 		end
 
 		-- Resolve screen edge collision
@@ -633,7 +670,7 @@ function _update(dt)
 				obj.vy -= (obj.y - h) * 1
 				obj.vx += der * 0.01
 			end]]
-	
+
 			obj:update(dt)
 		end
 
@@ -641,7 +678,7 @@ function _update(dt)
 	end)
 
 	-- Update line endings to match ball positions
-	pool.foreach_type("line", function (obj, i) obj:update(dt) end)
+	Pool.foreach_type("line", function (obj, i) obj:update(dt) end)
 
 	-- Update old mouse position
 	omx, omy = mx, my
@@ -651,16 +688,16 @@ function _draw(dt)
 	gfx.clear(gfx.COLOR_DARK_BLUE)
 
 	-- Render objects
-	pool.foreach(function (obj, i)
+	Pool.foreach(function (obj, i)
 		if obj.render == nil then return end
 		if obj.type == "ball" then return end
 		obj:render()
 	end)
 
 	-- Render balls on top
-	pool.foreach_type("ball", function (obj, i)
+	Pool.foreach_type("ball", function (obj, i)
 		if obj.render == nil then return end
-		obj:render(hovered_ball_index == i, selected_balls[i])
+		obj:render(Hovered_ball_index == i, Selected_balls[i])
 	end)
 
 	-- Render selection
@@ -678,81 +715,18 @@ function _draw(dt)
 	-- Render move offset
 	local move = get_menu_data("move")
 	if move.mode == "snap" then
-		for obj_index, _ in pairs(selected_balls) do
+		for obj_index, _ in pairs(Selected_balls) do
 			gfx.circ_fill(
-				pool.objects[obj_index].x + move.dx,
-				pool.objects[obj_index].y + move.dy,
+				Pool.objects[obj_index].x + move.dx,
+				Pool.objects[obj_index].y + move.dy,
 				2,
 				gfx.COLOR_LIGHT_GRAY
 			)
 		end
 	end
 
-
-	-- Render info a bout the selected ball
-	if State.stat_selected ~= -1 then
-		local ball = pool.objects[State.stat_selected]
-
-		ui.draw_label(f("Ball info:"),                                    gfx.COLOR_WHITE, -1, 1, -5)
-		ui.draw_label(f("Index: %d", State.stat_selected),                gfx.COLOR_WHITE, -1, 1, -4)
-		ui.draw_label(f("Pinned: %s", ball.pinned and "true" or "false"), gfx.COLOR_WHITE, -1, 1, -3)
-
-		-- Draw velocity
-		local scale = 4
-		gfx.line(ball.x, ball.y, ball.x + ball.vx*scale, ball.y, gfx.COLOR_RED)
-		gfx.line(ball.x, ball.y, ball.x, ball.y + ball.vy*scale, gfx.COLOR_GREEN)
-		gfx.line(ball.x, ball.y, ball.x + ball.vx*scale, ball.y + ball.vy*scale, gfx.COLOR_LIGHT_GRAY)
-	end
-
-
-
-
-	-- Render UI
-	ui.draw_label(f(
-		"%db + %dc = %d",
-		State.ball_count,
-		State.constraint_count,
-		State.ball_count+State.constraint_count
-	), gfx.COLOR_WHITE, 0, -1)
-	ui.draw_label(f("[ %s ]", menu_items[State.selected_menu].title), gfx.COLOR_WHITE, 0, -1, 1)
-	if State.is_paused then
-		ui.draw_label("PAUSED", gfx.COLOR_LIGHT_GRAY, 0, -1, 2)
-	end
-
-	-- Render toolbar
-	local offset = #menu_items / 2
-
-	for i, item in pairs(menu_items) do
-		local box = ui.get_box_repeat({w = usagi.SPRITE_SIZE + 4, h = usagi.SPRITE_SIZE + 4}, 0, 1, -offset + i - 1)
-
-		if State.selected_menu == i then
-			gfx.spr(4, box.x, box.y)
-		else
-			gfx.spr(3, box.x, box.y)
-		end
-
-		gfx.spr(item.sprite, box.x, box.y)
-	end
-
-	-- Render debug stats
-	if usagi.IS_DEV then
-		ui.draw_label(f("Pool size: %d", #pool.objects), gfx.COLOR_LIGHT_GRAY, 1, -1)
-		ui.draw_label(f("clr: %s", (selection_reset and "true" or "false")), gfx.COLOR_LIGHT_GRAY, 1, -1, 1)
-		ui.draw_label(f("B: %d", hovered_ball_index), gfx.COLOR_LIGHT_GRAY, 1, -1, 2)
-		ui.draw_label(f("C: %d", hovered_constraint_index), gfx.COLOR_LIGHT_GRAY, 1, -1, 3)
-
-		local s = ""
-		for obj_index, _ in pairs(selected_balls) do
-			s = s..tostring(obj_index)..", "
-		end
-
-		local s, m, h = get_time(util.round(usagi.elapsed))
-
-		ui.draw_label(f("Time: %02d:%02d:%02d", h, m, s), gfx.COLOR_LIGHT_GRAY, 1, 1, -1)
-		ui.draw_label(f("Delta: %.5f", dt), gfx.COLOR_LIGHT_GRAY, 1, 1, 0)
-	end
+	ui.render(true)
 
 	-- Render the mouse cursor
-	local mx, my = input.mouse()
 	gfx.spr(2, mx - 8, my - 8)
 end
